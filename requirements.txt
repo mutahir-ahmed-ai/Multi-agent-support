@@ -1,22 +1,10 @@
-# Pin Python 3.12 via runtime.txt (crewai 0.28.8 needs Python <=3.13)
-
-# CrewAI — pinned, requires langchain 0.1.x
-crewai==0.28.8
-
-# LangChain 0.1.x — must stay below 0.2.0 for crewai 0.28.8 compatibility
-langchain==0.1.20
-langchain-core>=0.1.52,<0.2.0
-langchain-community==0.0.38
-langchain-groq==0.1.6
-
-# Vector search
+langchain>=0.2.0
+langchain-core>=0.2.0
+langchain-community>=0.2.0
+langchain-text-splitters>=0.2.0
+langchain-groq>=0.1.0
+langchain-huggingface>=0.0.3
 faiss-cpu>=1.7.4
-
-# Embeddings model
 sentence-transformers>=2.2.0
-
-# LLM provider
 groq>=0.9.0
-
-# UI
 streamlit>=1.32.0
