@@ -172,6 +172,7 @@ def run_support_crew(
             f"- Use specific facts from research (prices, timeframes, steps, contacts)\n"
             f"- Numbered steps where customer must take action\n"
             f"- Professional but warm tone — no jargon\n"
+            f"- Use 'Dear valued customer,' as the greeting — never use placeholder text like [Customer Name]\n"
             f"- Sign off: TechFlow Customer Support Team\n"
         ),
         expected_output="Complete support email with SUBJECT LINE and full RESPONSE BODY.",
