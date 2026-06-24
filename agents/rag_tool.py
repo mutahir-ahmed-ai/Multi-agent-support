@@ -1,8 +1,9 @@
 import streamlit as st
-from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain.schema import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain.tools import Tool
 
 TECHFLOW_FAQ = """
 TechFlow CRM — Complete Knowledge Base and Support FAQ
@@ -213,26 +214,47 @@ PERFORMANCE ISSUES:
 
 @st.cache_resource
 def get_vector_store() -> FAISS:
-    """
-    Build FAISS index from the TechFlow FAQ.
-    Cached with @st.cache_resource — runs once per session.
-    """
+    """Build FAISS index from the TechFlow FAQ. Cached — runs once per session."""
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2",
         model_kwargs={"device": "cpu"},
         encode_kwargs={"normalize_embeddings": True}
     )
-
     faq_document = Document(
         page_content=TECHFLOW_FAQ,
         metadata={"source": "TechFlow CRM Knowledge Base"}
     )
-
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=200,
         separators=["\n\n", "\n", ". ", " ", ""]
     )
     chunks = splitter.split_documents([faq_document])
-
     return FAISS.from_documents(chunks, embeddings)
+
+
+def build_rag_tool(vector_store: FAISS) -> Tool:
+    """
+    Wrap the FAISS index in a LangChain Tool that CrewAI agents can call.
+    The Researcher agent uses this to search the TechFlow FAQ.
+    """
+    def search_faq(query: str) -> str:
+        docs = vector_store.similarity_search(query, k=3)
+        if not docs:
+            return "No relevant information found in the TechFlow knowledge base."
+        results = []
+        for i, doc in enumerate(docs, 1):
+            results.append(f"[Result {i}]\n{doc.page_content}")
+        return "\n\n---\n\n".join(results)
+
+    return Tool(
+        name="TechFlow Knowledge Base Search",
+        description=(
+            "Search TechFlow CRM's official knowledge base and FAQ documentation. "
+            "Use this to find information about: pricing plans, billing policies, "
+            "refund procedures, email integration setup and troubleshooting, contact limits, "
+            "pipeline management, API access, integrations, account settings, and support policies. "
+            "Input should be a specific search query."
+        ),
+        func=search_faq,
+    )
