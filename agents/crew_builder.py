@@ -1,6 +1,7 @@
+import os
 import streamlit as st
 from crewai import Agent, Task, Crew, Process
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from agents.rag_tool import build_rag_tool
 
@@ -14,50 +15,42 @@ def run_support_crew(
     """
     Build and run the 4-agent CrewAI customer support crew.
 
-    CrewAI coordinates the agents:
-    - Each Agent has a role, goal, and backstory — defining its personality and expertise
-    - Each Task has a description, expected_output, and context (previous task outputs)
-    - The Crew runs them in Process.sequential order — one after another
-    - Task callbacks update the Streamlit UI containers as each agent finishes
+    Uses Groq's OpenAI-compatible API endpoint via langchain-openai.
+    This avoids langchain-groq version conflicts while keeping full
+    temperature control and LangChain compatibility with crewai 0.28.8.
 
-    Args:
-        query:        The customer's support message
-        containers:   Dict of st.empty() placeholders keyed by agent name
-        groq_api_key: From st.secrets["GROQ_API_KEY"]
-        vector_store: FAISS index built from the TechFlow FAQ
-
-    Returns:
-        Dict with keys "classifier", "researcher", "writer", "qc"
+    CrewAI Process.sequential runs tasks in order:
+        Classifier → Researcher → Writer → Quality Checker
+    Each task receives context from previous tasks automatically.
+    Task callbacks update Streamlit containers live as each agent finishes.
     """
 
-    # ── LLM instances ────────────────────────────────────────────────────────
-    # In CrewAI, each Agent can have its own LLM or share one.
-    # We use two: low temperature for factual agents, higher for the writer.
-    llm_factual = ChatGroq(
+    # ── Groq via OpenAI-compatible endpoint ──────────────────────────────────
+    # Groq provides an OpenAI-compatible API at api.groq.com/openai/v1
+    # langchain-openai works with langchain 0.1.x (no version conflict)
+    # This gives us full temperature control per agent
+    os.environ["GROQ_API_KEY"] = groq_api_key
+
+    llm_factual = ChatOpenAI(
         model="llama-3.3-70b-versatile",
-        api_key=groq_api_key,
+        openai_api_key=groq_api_key,
+        openai_api_base="https://api.groq.com/openai/v1",
         temperature=0.1,
     )
-    llm_writer = ChatGroq(
+    llm_writer = ChatOpenAI(
         model="llama-3.3-70b-versatile",
-        api_key=groq_api_key,
+        openai_api_key=groq_api_key,
+        openai_api_base="https://api.groq.com/openai/v1",
         temperature=0.4,
     )
 
     # ── RAG Tool ─────────────────────────────────────────────────────────────
-    # Wraps the FAISS index in a LangChain Tool.
-    # CrewAI passes this to the Researcher Agent's tools list.
-    # The Agent decides when to call it and what query to pass.
     rag_tool = build_rag_tool(vector_store)
 
     # ── Captured outputs ─────────────────────────────────────────────────────
     captured = {"classifier": "", "researcher": "", "writer": "", "qc": ""}
 
-    # ── Callback helpers ─────────────────────────────────────────────────────
-    # CrewAI calls the Task callback with the task output when it completes.
-    # In crewai 0.28.8, the output is a raw string.
-    # We update the Streamlit container AND save to captured dict.
-
+    # ── Callbacks ─────────────────────────────────────────────────────────────
     def extract(output) -> str:
         if hasattr(output, "raw_output"): return str(output.raw_output)
         if hasattr(output, "result"):     return str(output.result)
@@ -86,28 +79,17 @@ def run_support_crew(
         else:
             containers["qc"].warning(f"**Quality Assessment (Issues Flagged):**\n\n{text}")
 
-    # ── AGENT DEFINITIONS ────────────────────────────────────────────────────
-    # role:             The agent's job title — shown in CrewAI's verbose output
-    # goal:             What this agent is trying to achieve
-    # backstory:        Shapes HOW the agent responds — its personality and expertise
-    # llm:              The language model powering this agent
-    # tools:            List of tools this agent can call (only Researcher gets RAG)
-    # allow_delegation: If True, agents can hand tasks to each other — we control
-    #                   flow explicitly via Task context, so this stays False
-    # max_iter:         Maximum ReAct reasoning steps before the agent gives up
-    # verbose:          We set False — callbacks handle the UI, not stdout logs
-
+    # ── Agents ────────────────────────────────────────────────────────────────
     classifier_agent = Agent(
         role="Senior Customer Support Classifier",
         goal=(
-            "Accurately categorise incoming customer support queries by type and urgency "
-            "so the support team can route and prioritise responses correctly."
+            "Accurately categorise incoming customer support queries by type "
+            "and urgency so the support team can route and prioritise correctly."
         ),
         backstory=(
-            "You are TechFlow's most experienced support analyst with 7 years of triaging "
-            "customer tickets. You can immediately identify the category, urgency, and "
-            "emotional state of any customer message. Your classifications directly determine "
-            "how quickly and how the team responds."
+            "You are TechFlow's most experienced support analyst with 7 years "
+            "of triaging customer tickets. You immediately identify category, "
+            "urgency, and emotional state from any customer message."
         ),
         llm=llm_factual,
         allow_delegation=False,
@@ -118,14 +100,13 @@ def run_support_crew(
     researcher_agent = Agent(
         role="TechFlow Knowledge Base Specialist",
         goal=(
-            "Find the most accurate and complete information from TechFlow's documentation "
-            "to help the Writer craft a factually correct response."
+            "Find the most accurate and complete information from TechFlow's "
+            "documentation to help the Writer craft a factually correct response."
         ),
         backstory=(
-            "You are TechFlow's resident expert on every policy, feature, and procedure. "
-            "You know the exact refund policy, the precise steps to fix any integration "
-            "issue, and every plan difference by heart. You search the knowledge base "
-            "thoroughly and compile only the facts directly relevant to the issue."
+            "You are TechFlow's resident expert on every policy, feature, and "
+            "procedure. You search the knowledge base thoroughly and compile "
+            "only the facts directly relevant to the issue."
         ),
         llm=llm_factual,
         tools=[rag_tool],
@@ -137,14 +118,14 @@ def run_support_crew(
     writer_agent = Agent(
         role="Senior Customer Support Writer",
         goal=(
-            "Write professional, empathetic, and solution-focused customer support "
+            "Write professional, empathetic, solution-focused customer support "
             "responses that resolve issues clearly and leave customers feeling valued."
         ),
         backstory=(
-            "You are TechFlow's head of customer communications with a reputation for "
-            "turning frustrated customers into loyal advocates. You balance professional "
-            "and genuinely human tone. You never use corporate jargon. You acknowledge "
-            "problems directly, provide clear steps, and always close on a reassuring note."
+            "You are TechFlow's head of customer communications — famous for "
+            "turning frustrated customers into loyal advocates. You balance "
+            "professional and genuinely human tone. No corporate jargon. "
+            "You acknowledge problems directly and always close reassuringly."
         ),
         llm=llm_writer,
         allow_delegation=False,
@@ -155,14 +136,13 @@ def run_support_crew(
     qc_agent = Agent(
         role="Customer Support Quality Assurance Lead",
         goal=(
-            "Ensure every customer support response meets TechFlow's quality standards "
-            "for tone, accuracy, completeness, and compliance before it is sent."
+            "Ensure every customer support response meets TechFlow's quality "
+            "standards for tone, accuracy, completeness, and compliance."
         ),
         backstory=(
-            "You are TechFlow's QA lead responsible for maintaining a 95% CSAT score. "
-            "You review every response against five criteria: empathetic tone, factual "
-            "accuracy, completeness, clarity of next steps, and compliance. "
-            "You are thorough but fair — you approve good responses quickly."
+            "You are TechFlow's QA lead responsible for maintaining a 95% CSAT "
+            "score. You review every response against five criteria and give "
+            "a clear verdict. Thorough but fair — you approve good work quickly."
         ),
         llm=llm_factual,
         allow_delegation=False,
@@ -170,50 +150,36 @@ def run_support_crew(
         verbose=False,
     )
 
-    # ── TASK DEFINITIONS ─────────────────────────────────────────────────────
-    # description:     Exact instructions for the agent
-    # expected_output: The format/content the agent should return
-    # agent:           Which CrewAI Agent executes this task
-    # context:         List of previous Tasks whose outputs this agent can see
-    #                  CrewAI automatically prepends context outputs to the prompt
-    # callback:        Function called by CrewAI when the task completes
-
+    # ── Tasks ─────────────────────────────────────────────────────────────────
     task_classify = Task(
         description=(
-            f"Analyse the following customer support query and produce a structured classification.\n\n"
+            f"Analyse this customer support query and produce a structured classification.\n\n"
             f"CUSTOMER QUERY:\n{query}\n\n"
-            f"Your classification must include:\n"
-            f"1. CATEGORY — choose exactly one: billing / technical / complaint / general\n"
-            f"2. URGENCY — choose exactly one: high / medium / low\n"
-            f"3. KEY ISSUES — bullet list of the specific problems raised\n"
-            f"4. CUSTOMER SENTIMENT — one word (frustrated/angry/neutral/curious/confused)\n"
-            f"5. TONE GUIDANCE — one sentence on how the Writer should approach this\n"
+            f"Output:\n"
+            f"CATEGORY: billing / technical / complaint / general (choose one)\n"
+            f"URGENCY: high / medium / low (choose one)\n"
+            f"KEY ISSUES: bullet list of specific problems raised\n"
+            f"CUSTOMER SENTIMENT: one word\n"
+            f"TONE GUIDANCE: one sentence for the Writer\n"
         ),
-        expected_output=(
-            "A structured classification with CATEGORY, URGENCY, KEY ISSUES, "
-            "CUSTOMER SENTIMENT, and TONE GUIDANCE clearly labelled."
-        ),
+        expected_output="Structured classification with CATEGORY, URGENCY, KEY ISSUES, CUSTOMER SENTIMENT, TONE GUIDANCE.",
         agent=classifier_agent,
         callback=on_classifier_done,
     )
 
     task_research = Task(
         description=(
-            f"Search the TechFlow knowledge base to find all information relevant to this query.\n\n"
-            f"ORIGINAL CUSTOMER QUERY:\n{query}\n\n"
-            f"You have the classification from the previous agent (see context).\n"
-            f"Use the TechFlow Knowledge Base Search tool. Make multiple targeted searches.\n\n"
-            f"Your output must include:\n"
-            f"1. RELEVANT SECTIONS FOUND\n"
-            f"2. KEY FACTS — specific facts, prices, timeframes, procedures\n"
-            f"3. RESOLUTION STEPS — exact steps the customer should take (if technical)\n"
-            f"4. APPLICABLE POLICIES — refund, billing, or support policies that apply\n"
-            f"5. SUPPORT CONTACTS — relevant email addresses or links\n"
+            f"Search the TechFlow knowledge base for all information relevant to this query.\n\n"
+            f"ORIGINAL QUERY:\n{query}\n\n"
+            f"Use the TechFlow Knowledge Base Search tool. Make multiple searches.\n\n"
+            f"Output:\n"
+            f"RELEVANT SECTIONS FOUND\n"
+            f"KEY FACTS: specific facts, prices, timeframes, procedures\n"
+            f"RESOLUTION STEPS: exact steps the customer should take\n"
+            f"APPLICABLE POLICIES\n"
+            f"SUPPORT CONTACTS\n"
         ),
-        expected_output=(
-            "A research summary with RELEVANT SECTIONS FOUND, KEY FACTS, "
-            "RESOLUTION STEPS, APPLICABLE POLICIES, and SUPPORT CONTACTS."
-        ),
+        expected_output="Research summary with RELEVANT SECTIONS, KEY FACTS, RESOLUTION STEPS, APPLICABLE POLICIES, SUPPORT CONTACTS.",
         agent=researcher_agent,
         context=[task_classify],
         callback=on_researcher_done,
@@ -221,22 +187,19 @@ def run_support_crew(
 
     task_write = Task(
         description=(
-            f"Write a complete professional customer support response.\n\n"
-            f"ORIGINAL CUSTOMER QUERY:\n{query}\n\n"
-            f"You have the classification and research from the previous agents (see context).\n\n"
+            f"Write a complete professional customer support email response.\n\n"
+            f"ORIGINAL QUERY:\n{query}\n\n"
+            f"Use the classification and research from previous agents (see context).\n\n"
             f"Requirements:\n"
+            f"- Start with SUBJECT: [subject line]\n"
             f"- Open with genuine empathy — name the specific issue\n"
-            f"- Address EVERY issue raised in the query\n"
-            f"- Use specific facts from the research (prices, timeframes, steps, contacts)\n"
-            f"- Provide clear numbered steps where the customer must take action\n"
-            f"- Professional but warm — no corporate jargon\n"
-            f"- Sign off as: TechFlow Customer Support Team\n"
-            f"- Start with: SUBJECT: [email subject line]\n"
+            f"- Address EVERY issue in the query\n"
+            f"- Use specific facts from research (prices, timeframes, steps, contacts)\n"
+            f"- Numbered steps where customer must take action\n"
+            f"- Professional but warm tone — no jargon\n"
+            f"- Sign off: TechFlow Customer Support Team\n"
         ),
-        expected_output=(
-            "A complete support email with SUBJECT LINE and full RESPONSE BODY — "
-            "greeting, empathetic opening, factual body, numbered steps, closing."
-        ),
+        expected_output="Complete support email with SUBJECT LINE and full RESPONSE BODY.",
         agent=writer_agent,
         context=[task_classify, task_research],
         callback=on_writer_done,
@@ -244,29 +207,25 @@ def run_support_crew(
 
     task_qc = Task(
         description=(
-            f"Perform quality assurance review of the draft customer support response.\n\n"
-            f"ORIGINAL CUSTOMER QUERY:\n{query}\n\n"
+            f"Quality assurance review of the draft support response.\n\n"
+            f"ORIGINAL QUERY:\n{query}\n\n"
             f"Review the Writer's draft (see context) against:\n"
             f"1. TONE: empathetic, professional, non-defensive?\n"
-            f"2. ACCURACY: facts consistent with documentation?\n"
-            f"3. COMPLETENESS: all issues in the original query addressed?\n"
+            f"2. ACCURACY: facts match documentation?\n"
+            f"3. COMPLETENESS: all issues in the query addressed?\n"
             f"4. CLARITY: next steps clear and actionable?\n"
-            f"5. COMPLIANCE: any unrealistic promises or inappropriate statements?\n\n"
-            f"Give PASS or NEEDS IMPROVEMENT for each. Then OVERALL VERDICT and QUALITY SCORE /10.\n"
+            f"5. COMPLIANCE: any unrealistic promises?\n\n"
+            f"Give PASS or NEEDS IMPROVEMENT for each.\n"
+            f"Then OVERALL VERDICT: APPROVED or NEEDS REVISION\n"
+            f"And QUALITY SCORE: X/10\n"
         ),
-        expected_output=(
-            "QA assessment with criterion scores (PASS/NEEDS IMPROVEMENT), "
-            "OVERALL VERDICT (APPROVED or NEEDS REVISION), QUALITY SCORE /10, QA NOTES."
-        ),
+        expected_output="QA assessment with criterion scores, OVERALL VERDICT (APPROVED/NEEDS REVISION), QUALITY SCORE /10.",
         agent=qc_agent,
         context=[task_write],
         callback=on_qc_done,
     )
 
-    # ── CREW ASSEMBLY ────────────────────────────────────────────────────────
-    # Process.sequential: tasks run in order, one after another
-    # Each task waits for the previous to finish before starting
-    # CrewAI handles the context injection automatically from context=[...]
+    # ── Crew ──────────────────────────────────────────────────────────────────
     crew = Crew(
         agents=[classifier_agent, researcher_agent, writer_agent, qc_agent],
         tasks=[task_classify, task_research, task_write, task_qc],
@@ -274,8 +233,6 @@ def run_support_crew(
         verbose=0,
     )
 
-    # kickoff() blocks until all 4 tasks complete.
-    # Callbacks fire during execution and update the Streamlit containers live.
     crew.kickoff()
 
     return captured
