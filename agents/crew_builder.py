@@ -215,9 +215,9 @@ def run_support_crew(
     def get_output(task):
         if task.output is None:
             return "No output captured."
-        if hasattr(task.output, "result"):
-            return str(task.output.result)
-        if hasattr(task.output, "raw_output"):
+        if hasattr(task.output, "exported_output") and task.output.exported_output:
+            return str(task.output.exported_output)
+        if hasattr(task.output, "raw_output") and task.output.raw_output:
             return str(task.output.raw_output)
         return str(task.output)
 
