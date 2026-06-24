@@ -16,7 +16,7 @@ TechFlow serves over 15,000 businesses globally.
 
 == PLANS AND PRICING ==
 
-STARTER PLAN — $29 per user per month (or $290 per user per year — save 17%)
+STARTER PLAN — USD 29 per user per month (or USD 290 per user per year — save 17%)
 - Up to 2,500 contacts
 - 1 sales pipeline
 - Basic email integration (Gmail and Outlook)
@@ -25,7 +25,7 @@ STARTER PLAN — $29 per user per month (or $290 per user per year — save 17%)
 - 5 GB storage per user
 - Maximum 5 users
 
-PROFESSIONAL PLAN — $79 per user per month (or $790 per user per year — save 17%)
+PROFESSIONAL PLAN — USD 79 per user per month (or USD 790 per user per year — save 17%)
 - Up to 25,000 contacts
 - Unlimited sales pipelines
 - Advanced email integration with tracking and automated sequences
@@ -38,7 +38,7 @@ PROFESSIONAL PLAN — $79 per user per month (or $790 per user per year — save
 - Workflow automation (up to 50 active workflows)
 - Mobile app for iOS and Android
 
-ENTERPRISE PLAN — $199 per user per month (or $1,990 per user per year — save 17%)
+ENTERPRISE PLAN — USD 199 per user per month (or USD 1,990 per user per year — save 17%)
 - Unlimited contacts and pipelines
 - All Professional features included
 - Unlimited workflow automation
