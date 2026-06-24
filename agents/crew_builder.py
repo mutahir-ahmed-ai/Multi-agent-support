@@ -50,34 +50,11 @@ def run_support_crew(
     # ── Captured outputs ─────────────────────────────────────────────────────
     captured = {"classifier": "", "researcher": "", "writer": "", "qc": ""}
 
-    # ── Callbacks ─────────────────────────────────────────────────────────────
-    def extract(output) -> str:
-        if hasattr(output, "raw_output"): return str(output.raw_output)
-        if hasattr(output, "result"):     return str(output.result)
-        return str(output)
-
-    def on_classifier_done(output):
-        text = extract(output)
-        captured["classifier"] = text
-        containers["classifier"].markdown(f"**Classification complete:**\n\n{text}")
-
-    def on_researcher_done(output):
-        text = extract(output)
-        captured["researcher"] = text
-        containers["researcher"].markdown(f"**Research findings:**\n\n{text}")
-
-    def on_writer_done(output):
-        text = extract(output)
-        captured["writer"] = text
-        containers["writer"].success(f"**Draft response:**\n\n{text}")
-
-    def on_qc_done(output):
-        text = extract(output)
-        captured["qc"] = text
-        if "APPROVED" in text.upper():
-            containers["qc"].success(f"**Quality Assessment:**\n\n{text}")
-        else:
-            containers["qc"].warning(f"**Quality Assessment (Issues Flagged):**\n\n{text}")
+    # ── Task outputs captured after kickoff ──────────────────────────────────
+    # In crewai 0.28.8, the most reliable way to get each task's output is to
+    # read task.output directly after crew.kickoff() completes.
+    # Callbacks don't reliably update Streamlit containers because CrewAI runs
+    # tasks in its own execution context separate from Streamlit's main thread.
 
     # ── Agents ────────────────────────────────────────────────────────────────
     classifier_agent = Agent(
@@ -164,7 +141,6 @@ def run_support_crew(
         ),
         expected_output="Structured classification with CATEGORY, URGENCY, KEY ISSUES, CUSTOMER SENTIMENT, TONE GUIDANCE.",
         agent=classifier_agent,
-        callback=on_classifier_done,
     )
 
     task_research = Task(
@@ -182,7 +158,6 @@ def run_support_crew(
         expected_output="Research summary with RELEVANT SECTIONS, KEY FACTS, RESOLUTION STEPS, APPLICABLE POLICIES, SUPPORT CONTACTS.",
         agent=researcher_agent,
         context=[task_classify],
-        callback=on_researcher_done,
     )
 
     task_write = Task(
@@ -202,7 +177,6 @@ def run_support_crew(
         expected_output="Complete support email with SUBJECT LINE and full RESPONSE BODY.",
         agent=writer_agent,
         context=[task_classify, task_research],
-        callback=on_writer_done,
     )
 
     task_qc = Task(
@@ -222,7 +196,6 @@ def run_support_crew(
         expected_output="QA assessment with criterion scores, OVERALL VERDICT (APPROVED/NEEDS REVISION), QUALITY SCORE /10.",
         agent=qc_agent,
         context=[task_write],
-        callback=on_qc_done,
     )
 
     # ── Crew ──────────────────────────────────────────────────────────────────
@@ -233,6 +206,43 @@ def run_support_crew(
         verbose=0,
     )
 
+    # Run the crew — blocks until all 4 tasks complete
     crew.kickoff()
+
+    # ── Read task outputs after kickoff ───────────────────────────────────────
+    # task.output is a TaskOutput object in crewai 0.28.8
+    # str() gives us the raw text output from each agent
+    def get_output(task):
+        if task.output is None:
+            return "No output captured."
+        if hasattr(task.output, "result"):
+            return str(task.output.result)
+        if hasattr(task.output, "raw_output"):
+            return str(task.output.raw_output)
+        return str(task.output)
+
+    captured["classifier"] = get_output(task_classify)
+    captured["researcher"] = get_output(task_research)
+    captured["writer"]     = get_output(task_write)
+    captured["qc"]         = get_output(task_qc)
+
+    # ── Update UI containers now that all outputs are available ───────────────
+    containers["classifier"].markdown(
+        f"**Classification complete:**\n\n{captured['classifier']}"
+    )
+    containers["researcher"].markdown(
+        f"**Research findings:**\n\n{captured['researcher']}"
+    )
+    containers["writer"].success(
+        f"**Draft response:**\n\n{captured['writer']}"
+    )
+    if "APPROVED" in captured["qc"].upper():
+        containers["qc"].success(
+            f"**Quality Assessment:**\n\n{captured['qc']}"
+        )
+    else:
+        containers["qc"].warning(
+            f"**Quality Assessment (Issues Flagged):**\n\n{captured['qc']}"
+        )
 
     return captured
