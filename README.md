@@ -2,7 +2,7 @@
 
 An AI-powered customer support pipeline where four specialized agents work in sequence — classify, research, write, and quality-check — to handle any customer query. Built with CrewAI and deployed on Streamlit Cloud.
 
-🚀 **[Live Demo](#)** ← Replace with your Streamlit Cloud URL after deployment
+🚀 Live Demo: https://multi-agent-support-zvple7yytkvntyrw2degzg.streamlit.app/
 
 ---
 
