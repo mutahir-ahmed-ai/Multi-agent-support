@@ -83,7 +83,7 @@ REFUND POLICY:
 - Refunds processed within 5-7 business days to your original payment method
 
 DUPLICATE CHARGES AND BILLING ERRORS:
-- A duplicate charge usually occurs when a payment fails and the system retries,
+- A duplicate charge usually occurs when a payment fails and the system retries
   but the original charge also processed successfully
 - TechFlow will fully refund any confirmed duplicate charges within 3-5 business days
 - To report: email billing@techflow.io or go to Settings > Billing > Report an Issue
@@ -102,11 +102,6 @@ FAILED PAYMENTS:
 - To reactivate: update payment method in Settings > Billing > Update Payment Method
 
 == EMAIL INTEGRATION ==
-
-SUPPORTED EMAIL PROVIDERS:
-- Gmail (Google Workspace and personal Gmail accounts)
-- Microsoft Outlook (Office 365 and Outlook.com)
-- Other providers via IMAP/SMTP (manual configuration required)
 
 GMAIL INTEGRATION SETUP:
 1. Go to Settings > Integrations > Email > Connect Gmail
@@ -134,81 +129,19 @@ CONTACT LIMITS:
 - Enterprise: unlimited contacts
 - Warning at 90% capacity; upgrade or archive unused contacts
 
-IMPORTING CONTACTS:
-- CSV import: Contacts > Import > Upload CSV
-- Required: at least one of first_name or last_name, plus email address
-- Maximum file size: 50 MB per import
-- Duplicate detection automatic based on email address
-
 DATA LOSS AND RECOVERY:
 - Deleted data goes to Recycle Bin: Settings > Data > Recycle Bin
 - Items restorable within 30 days before permanent deletion
 - For major data loss: contact support@techflow.io immediately
-- Daily automatic backups retained for 30 days; recovery possible within 30 days
-
-== INTEGRATIONS AND API ==
-
-NATIVE INTEGRATIONS:
-- Gmail and Outlook (email sync)
-- Slack and Microsoft Teams (notifications)
-- Google Calendar and Outlook Calendar (meeting sync)
-- LinkedIn Sales Navigator (Professional and Enterprise only)
-- Zapier (5,000+ apps, all plans)
-- Stripe for payment sync (Enterprise only)
-- QuickBooks and Xero for invoice sync (Enterprise only)
-
-API ACCESS:
-- Professional: 10,000 API calls per day
-- Enterprise: unlimited API calls
-- Not available on Starter plan
-- API key: Settings > API > Generate Key
-- Rate limit: 100 requests per minute
-
-== ACCOUNT MANAGEMENT ==
-
-USER ROLES:
-- Admin: full access including billing and user management
-- Manager: all team data, pipelines, reports — no billing access
-- User: own contacts, deals, tasks — limited reporting
-- Read-only: view all data, no create or edit
-
-ADDING AND REMOVING USERS:
-- Add: Settings > Team > Invite User
-- Invitations expire after 7 days
-- Remove: Settings > Team > select user > Deactivate
-
-DATA BACKUP AND EXPORT:
-- Export: Settings > Data > Export All Data (CSV format)
-- Large exports may take up to 30 minutes
 - Daily automatic backups retained for 30 days
-
-== COMMON TROUBLESHOOTING ==
-
-LOGIN PROBLEMS:
-- Forgot password: click Forgot Password on the login page
-- Account locked after 5 failed attempts: locked 30 minutes then auto-unlocked
-- Browser issues: clear cache and cookies or use incognito window
-
-PERFORMANCE ISSUES:
-- Check status.techflow.io for ongoing incidents
-- Hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)
 
 == SUPPORT CONTACTS ==
 - General support: support@techflow.io
 - Billing issues: billing@techflow.io
-- Security issues: security@techflow.io
-- Sales and Enterprise: sales@techflow.io
 - Status page: status.techflow.io
 - Help centre: help.techflow.io
 - Response times: Starter 48 hours email, Professional 4 hours chat+email,
   Enterprise 24/7 phone with dedicated account manager
-
-== SECURITY AND COMPLIANCE ==
-- All data encrypted in transit (TLS 1.2+) and at rest (AES-256)
-- SOC 2 Type II certified
-- GDPR compliant; DPA available at legal@techflow.io
-- EU data residency available on Enterprise plan
-- Two-factor authentication: Settings > Security > Enable 2FA
 """
 
 
@@ -234,10 +167,8 @@ def get_vector_store() -> FAISS:
 
 
 def build_rag_tool(vector_store: FAISS) -> Tool:
-    """
-    Wrap the FAISS index in a LangChain Tool that CrewAI agents can call.
-    The Researcher agent uses this to search the TechFlow FAQ.
-    """
+    """Wrap FAISS in a LangChain Tool that the CrewAI Researcher agent can call."""
+
     def search_faq(query: str) -> str:
         docs = vector_store.similarity_search(query, k=3)
         if not docs:
@@ -250,10 +181,10 @@ def build_rag_tool(vector_store: FAISS) -> Tool:
     return Tool(
         name="TechFlow Knowledge Base Search",
         description=(
-            "Search TechFlow CRM's official knowledge base and FAQ documentation. "
-            "Use this to find information about: pricing plans, billing policies, "
-            "refund procedures, email integration setup and troubleshooting, contact limits, "
-            "pipeline management, API access, integrations, account settings, and support policies. "
+            "Search TechFlow CRM's official knowledge base and FAQ. "
+            "Use this to find: pricing plans, billing policies, refund procedures, "
+            "email integration troubleshooting, contact limits, API access, "
+            "integrations, account settings, and support policies. "
             "Input should be a specific search query."
         ),
         func=search_faq,
