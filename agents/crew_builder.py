@@ -32,13 +32,13 @@ def run_support_crew(
     os.environ["GROQ_API_KEY"] = groq_api_key
 
     llm_factual = ChatOpenAI(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         openai_api_key=groq_api_key,
         openai_api_base="https://api.groq.com/openai/v1",
         temperature=0.1,
     )
     llm_writer = ChatOpenAI(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         openai_api_key=groq_api_key,
         openai_api_base="https://api.groq.com/openai/v1",
         temperature=0.4,
