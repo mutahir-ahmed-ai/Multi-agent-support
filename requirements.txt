@@ -2,3 +2,4 @@ crewai==0.28.8
 faiss-cpu>=1.7.4
 sentence-transformers>=2.2.0
 streamlit>=1.32.0
+setuptools<81
